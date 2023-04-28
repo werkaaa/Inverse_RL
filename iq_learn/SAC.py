@@ -121,7 +121,7 @@ class SAC(object):
         policy_batch = policy_buffer.get_samples(self.batch_size)
         expert_batch = expert_buffer.get_samples(self.batch_size)
 
-        losses = self.iq_update_critic(expert_batch)
+        losses = self.iq_update_critic(policy_batch, expert_batch)
 
         if step % self.actor_update_frequency == 0:
             if self.offline:
