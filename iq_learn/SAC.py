@@ -1,6 +1,8 @@
 import torch
 from torch.optim import Adam
 
+from utils.memory import MemoryBuffer
+
 
 def soft_update(target, source, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
@@ -14,11 +16,11 @@ def hard_update(target, source):
 
 
 class SAC(object):
-    def __init__(self, action_space, batch_size, args):
+    def __init__(self, action_space_dim, args):
 
         self.gamma = args.gamma
-        self.batch_size = batch_size
-        self.action_space = action_space
+        self.batch_size = args.batch_size
+        self.action_space_dim = action_space_dim
 
         # This can be made a learnable parameter (automatic entropy tuning)
         self.alpha = args.alpha
@@ -119,9 +121,8 @@ class SAC(object):
         return losses
 
     def iq_update(self, policy_buffer, expert_buffer, step):
-        # TODO: Implement replay buffers
-        policy_batch = policy_buffer.get_samples(self.batch_size)
-        expert_batch = expert_buffer.get_samples(self.batch_size)
+        policy_batch = policy_buffer.get_batch(self.batch_size)
+        expert_batch = expert_buffer.get_batch(self.batch_size)
 
         losses = self.iq_update_critic(policy_batch, expert_batch)
 
