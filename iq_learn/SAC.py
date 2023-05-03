@@ -2,6 +2,7 @@ import torch
 from torch.optim import Adam
 
 from utils.memory import MemoryBuffer
+from iq_learn.SAC_models import SingleQCritic, DiagGaussianActor
 
 
 def soft_update(target, source, tau):
@@ -16,11 +17,10 @@ def hard_update(target, source):
 
 
 class SAC(object):
-    def __init__(self, action_space_dim, args):
+    def __init__(self, obs_dim, action_dim, args):
 
         self.gamma = args.gamma
-        self.batch_size = args.batch_size
-        self.action_space_dim = action_space_dim
+        self.batch_size = args.train.batch_size
 
         # This can be made a learnable parameter (automatic entropy tuning)
         self.alpha = args.alpha
@@ -29,21 +29,37 @@ class SAC(object):
         if self.soft_update:
             self.critic_tau = args.critic_tau
 
-        self.target_update_frequency = args.target_update_interval
+        self.target_update_frequency = args.target_update_frequency
         self.actor_update_frequency = args.actor_update_frequency
 
-        self.device = torch.device("cuda" if args.cuda else "cpu")
+        self.device = torch.device("cuda" if args.train.cuda else "cpu")
 
-        # TODO: Fill in model parameter according to model definition
-        self.critic = args.critic(args.critic_config).to(device=self.device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
+        # TODO: Models are fixed now, but for the future experiments they should be passed in the config.
+        self.critic = SingleQCritic(
+            obs_dim,
+            action_dim,
+            args.critic).to(device=self.device)
+        self.critic_optim = Adam(self.critic.parameters(), lr=args.train.lr)
 
-        self.critic_target = args.critic(
-            args.critic_config).to(device=self.device)
+        self.critic_target = SingleQCritic(
+            obs_dim,
+            action_dim,
+            args.critic).to(device=self.device)
         hard_update(self.critic_target, self.critic)
 
-        self.actor = args.actor(args.actor_config).to(self.device)
-        self.actor_optim = Adam(self.actor.parameters(), lr=args.lr)
+        self.actor = DiagGaussianActor(
+            obs_dim,
+            action_dim,
+            args.actor).to(self.device)
+        self.actor_optim = Adam(self.actor.parameters(), lr=args.train.lr)
+
+        self.train()
+        self.critic_target.train()
+
+    def train(self, training=True):
+        self.training = training
+        self.actor.train(training)
+        self.critic.train(training)
 
     def get_action(self, state, sample=False):
         state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
@@ -54,13 +70,17 @@ class SAC(object):
     def getV(self, obs):
         action, log_prob, _ = self.actor.sample(obs)
         current_Q = self.critic(obs, action)
-        current_V = current_Q - self.alpha.detach() * log_prob
+        # TODO: Change this back after we make the alpha learnable.
+        # current_V = current_Q - self.alpha.detach() * log_prob
+        current_V = current_Q - self.alpha * log_prob
         return current_V
 
     def get_targetV(self, obs):
         action, log_prob, _ = self.actor.sample(obs)
         target_Q = self.critic_target(obs, action)
-        target_V = target_Q - self.alpha.detach() * log_prob
+        # TODO: Change this back after we make the alpha learnable.
+        # target_V = target_Q - self.alpha.detach() * log_prob
+        target_V = target_Q - self.alpha * log_prob
         return target_V
 
     def iq_update_critic(self, policy_batch, expert_batch):
@@ -69,16 +89,17 @@ class SAC(object):
             torch.cat(
                 [policy_data, expert_data], dim=0) for policy_data, expert_data in zip(policy_batch, expert_batch)
         )
-        is_expert = torch.cat([torch.zeros_like(policy_batch[0], dtype=torch.bool),
-                               torch.ones_like(expert_batch[0], dtype=torch.bool)], dim=0)
+        # Follow the size of the reward vector.
+        is_expert = torch.cat([torch.zeros_like(policy_batch[3], dtype=torch.bool),
+                               torch.ones_like(expert_batch[3], dtype=torch.bool)], dim=0)
         obs, next_obs, action, reward, done = batch
 
         # IQ-Learn with X^2 divergence
         # Calculate 1st term of loss: -E_(ρ_expert)[Q(s, a) - γV(s')]
         current_Q = self.critic(obs, action)
-        y = (1 - done) * self.gamma * self.getV(next_obs)
 
-        # We use target critic for stability
+        # We use target critic for stability.
+        # Original paper has a flag for that, deciding if we use target critic or the current critic.
         with torch.no_grad():
             y = (1 - done) * self.gamma * self.get_targetV(next_obs)
 
@@ -107,7 +128,9 @@ class SAC(object):
         action, log_prob, _ = self.actor.sample(obs)
         actor_Q = self.critic(obs, action)
 
-        actor_loss = (self.alpha.detach() * log_prob - actor_Q).mean()
+        # TODO: Change this back after we make the alpha learnable.
+        # actor_loss = (self.alpha.detach() * log_prob - actor_Q).mean()
+        actor_loss = (self.alpha * log_prob - actor_Q).mean()
 
         # optimize the actor
         self.actor_optim.zero_grad()
