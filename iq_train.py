@@ -25,10 +25,10 @@ def main():
         args = json.load(f)
 
     # Make environments and set the seed
-    env = make_environment()
-    eval_env = make_environment()
-    env.seed(args.seed)
-    eval_env.seed(args.seed + 1)
+    env = make_environment(args)
+    eval_env = make_environment(args)
+    env.reset(seed=args.seed)
+    eval_env.reset(seed=args.seed + 1)
 
     # make agent
     agent = make_agent(env, args)
@@ -38,16 +38,16 @@ def main():
 
     # Create expert memory buffer
     expert_memory_replay = MemoryBuffer(args.seed + 3)
-    expert_memory_replay.load(pathlib.Path(f'./experts/{args.env.demo}'),
-                              num_trajs=args.expert.num_trajs,
-                              seed=args.seed + 4)
+    expert_memory_replay.generate_expert_data(
+        env, args.expert_agent_dir, args.num_trajectories, args.seed + 4
+    )
 
     # Train
     total_steps = 0
     learn_steps = 0
 
     for epoch in args.epochs:
-        state = env.reset()
+        state = env.reset(args.seed + 1e6)
         episode_reward = 0
 
         for episode_step in range(args.episode_steps + args.warmup_steps):
@@ -69,12 +69,14 @@ def main():
             if str(env.__class__.__name__).find('TimeLimit') >= 0:
                 done_no_lim = 0
 
-            online_memory_replay.add((state, next_state, action, reward, done_no_lim))
+            online_memory_replay.add(
+                (state, next_state, action, reward, done_no_lim))
 
             if online_memory_replay.length > args.initial_mem:
                 learn_steps += 1
                 # IQ-Learn step.
-                losses = agent.iq_update(online_memory_replay, expert_memory_replay)
+                losses = agent.iq_update(
+                    online_memory_replay, expert_memory_replay)
 
             if done:
                 break

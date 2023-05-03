@@ -17,7 +17,7 @@ env.reset(seed=42)
 model = SAC.load("humanoid", env)
 
 NUM_SAMPLES = 10
-STEPS = 100
+# STEPS = 100
 
 # # Evaluate the agent
 for i_sample in range(NUM_SAMPLES):

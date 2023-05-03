@@ -1,8 +1,12 @@
+import copy
 import pickle
 import random
+from typing import Tuple
 import warnings
 
 import numpy as np
+from gym import Env
+from stable_baselines3 import SAC
 
 
 class MemoryBuffer:
@@ -12,38 +16,44 @@ class MemoryBuffer:
         self.length = 0
         random.seed(seed)
 
-    def add(self, experience) -> None:
+    def add(self, experience: Tuple[np.array, np.array, np.array, float, bool]) -> None:
+        """
+        Add a new experience to the buffer.
+
+        :param experience: Tuple of (state, next_state, action, reward, done)
+        """
         self.length += 1
         self.buffer.append(experience)
 
-    def load_expert_data(self, expert_path, num_trajectories, seed):
-        with open(expert_path, 'rb') as f:
-            trajs = pickle.load(f)
+    def generate_expert_data(self, env: Env, expert_agent_dir: str, num_trajectories: int, seed: int):
+        """
+        Generate expert data using a trained agent.
 
-        # Sample random `num_trajectories` experts.
-        # We hve a separate seed for loading expert data.
-        rng = np.random.RandomState(seed)
-        perm = np.arange(len(trajs["states"]))
-        perm = rng.permutation(perm)
+        :param env: The environment to generate data for.
+        :param expert_agent_dir: The directory of the trained agent.
+        :param num_trajectories: The number of trajectories to generate.
+        :param seed: The seed to use for the environment.
+        """
+        env = copy.deepcopy(env)
 
-        idx = perm[:num_trajectories]
-        for k, v in trajs.items():
-            trajs[k] = [v[i] for i in idx]
+        model = SAC.load(expert_agent_dir, env)
 
-        # We can also consider subsampling the trajectories
-        # as in the original code.
+        seed += 1
 
-        # We transform it for compatibility with the online memory buffer
-        self.length = trajs["lengths"].sum().item()
-        for traj_idx in range(num_trajectories):
-            for step_idx in range(trajs["lengths"][traj_idx]):
-                self.add((
-                    trajs["states"][traj_idx][step_idx],
-                    trajs["next_states"][traj_idx][step_idx],
-                    trajs["actions"][traj_idx][step_idx],
-                    trajs["rewards"][traj_idx][step_idx],
-                    trajs["dones"][traj_idx][step_idx]
-                ))
+        obs = env.reset(seed)
+        for _ in range(num_trajectories):
+            if done:
+                seed += 1
+                obs = env.reset(seed)
+                # TODO should we save or not?
+                continue
+
+            action, _states = model.predict(obs, deterministic=True)
+            obs, reward, done, _ = env.step(action)
+
+            self.add(
+                (_states, obs, action, reward, done)
+            )
 
     def get_batch(self, batch_size):
         if batch_size > len(self.buffer):
@@ -54,7 +64,8 @@ class MemoryBuffer:
             batch_size = len(self.buffer)
 
         # Select a consecutive batch of data of size batch_size starting from the random start index
-        indexes = np.random.choice(np.arange(len(self.buffer)), size=batch_size, replace=False)
+        indexes = np.random.choice(
+            np.arange(len(self.buffer)), size=batch_size, replace=False)
         batch = [self.buffer[i] for i in indexes]
 
         obs_batch = [t[0] for t in batch]
@@ -68,4 +79,5 @@ class MemoryBuffer:
 
 if __name__ == '__main__':
     mb = MemoryBuffer()
-    mb.load_expert_data("/home/weronika/Documents/masters/sem2/AIPMLR/Inverse_RL/experts/HalfCheetah-v2_25.pkl")
+    mb.load_expert_data(
+        "/home/weronika/Documents/masters/sem2/AIPMLR/Inverse_RL/experts/HalfCheetah-v2_25.pkl")
