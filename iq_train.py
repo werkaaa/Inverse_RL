@@ -40,18 +40,16 @@ def main():
 
     # Create expert memory buffer
     expert_memory_replay = MemoryBuffer(args.seed + 3)
-    expert_memory_replay.load_expert_data(pathlib.Path(f'./experts/{args.env.demo}'),
-                                          num_trajs=args.expert.num_trajs,
-                                          seed=args.seed + 4)
+    expert_memory_replay.generate_expert_data(
+        env, args.expert_agent_dir, args.num_trajectories, args.seed + 4
+    )
 
     # Train
     total_steps = 0
     learn_steps = 0
-
-    for epoch in range(args.train.epochs):
-        # Should we also set the seed here? In the original
-        # code they don't.
-        state = env.reset()[0]
+    
+    for epoch in args.epochs:
+        state, _ = env.reset(args.seed + 1e6)
         episode_reward = 0
 
         for episode_step in range(args.train.episode_steps + args.train.warmup_steps):
