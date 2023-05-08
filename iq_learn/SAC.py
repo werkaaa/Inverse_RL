@@ -124,7 +124,7 @@ class SAC(object):
         self.critic_optim.step()
 
         losses = {
-            'loss/iq_critic': loss.item()
+            'loss/iq_critic_loss': loss.item()
         }
 
         return losses
@@ -143,8 +143,8 @@ class SAC(object):
         self.actor_optim.step()
 
         losses = {
-            'loss/actor': actor_loss.item(),
-            'actor_loss/entropy': -log_prob.mean().item()}
+            'loss/iq_actor_loss': actor_loss.item(),
+            'loss/iq_actor_entropy': -log_prob.mean().item()}
 
         return losses
 
