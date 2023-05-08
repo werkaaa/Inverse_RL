@@ -20,9 +20,11 @@
     "episode_steps": 100,
     "warmup_steps": 10,
     "cuda": false,
+    "mps": false,
     "lr": 0.01,
     "batch_size": 32,
-    "log_interval": 10
+    "log_interval": 10,
+    "show_vis": false
   },
   "eval": {
     "num_trajs": 10,

@@ -82,32 +82,29 @@ def main():
             state = next_state
 
         if epoch % args.train.log_interval == 0:
-            eval_env = make_environment(args, render_mode="human")
+            render_mode = "human" if args.train.show_vis else None
+            eval_env = make_environment(args, render_mode=render_mode)
             eval_env.reset(seed=args.seed + 1)
-            # Evaluate the agent
-            eval_episode_rewards = []
+
+            eval_reward = 0
+            eval_steps = 0
             for _ in range(args.eval.num_trajs):
                 state, _ = eval_env.reset(seed=args.seed + 2000)
-                episode_reward = 0
-                done = False
-
-                current_steps = 0
                 for _ in range(args.eval.max_traj_steps):
-                    current_steps += 1
+                    eval_steps += 1
 
                     agent.train(False)
                     action = agent.get_action(state, sample=False)
                     agent.train(True)
                     next_state, reward, done, _, _ = eval_env.step(action)
-                    episode_reward += reward
+                    eval_reward += reward
                     state = next_state
 
                     if done:
                         break
 
-                eval_episode_rewards.append(episode_reward/current_steps)
 
-            avg_eval_reward = sum(eval_episode_rewards) / len(eval_episode_rewards)
+            avg_eval_reward = eval_reward / eval_steps
             print(f"Epoch {epoch+1} average evaluation reward: {avg_eval_reward:.2f}")
 
 
