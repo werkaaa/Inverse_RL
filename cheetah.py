@@ -14,7 +14,7 @@ env.reset(seed=69)
 
 env = gym.make("HalfCheetah-v4", render_mode="human")
 env.reset(seed=42)
-model = SAC.load("cheetah", env)
+model = SAC.load("models/cheetah", env)
 
 NUM_SAMPLES = 10
 STEPS = 100

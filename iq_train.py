@@ -1,17 +1,20 @@
-from attrdict import AttrDict
 import json
 import pathlib
+from typing import Literal
 
 import gym
+from attrdict import AttrDict
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from iq_learn.SAC import SAC
 from utils.memory import MemoryBuffer
 
 
-def make_environment(args):
+def make_environment(args, render_mode=None):
     # For now we run the simplest environment with continuous
     # action space. It should be extended later.
-    return gym.make(args.env.name, render_mode="human")
+    return gym.make(args.env.name, render_mode=render_mode)
 
 
 def make_agent(env, args):
@@ -28,9 +31,7 @@ def main():
 
     # Make environments and set the seed
     env = make_environment(args)
-    eval_env = make_environment(args)
     env.reset(seed=args.seed)
-    eval_env.reset(seed=args.seed + 1)
 
     # make agent
     agent = make_agent(env, args)
@@ -48,7 +49,7 @@ def main():
     total_steps = 0
     learn_steps = 0
 
-    for epoch in range(args.train.epochs):
+    for epoch in tqdm(range(args.train.epochs)):
         state, _ = env.reset(seed=args.seed + 1000)
         episode_reward = 0
 
@@ -79,6 +80,37 @@ def main():
             if done:
                 break
             state = next_state
+
+        if epoch % args.train.log_interval == 0:
+            eval_env = make_environment(args, render_mode="human")
+            eval_env.reset(seed=args.seed + 1)
+            # Evaluate the agent
+            eval_episode_rewards = []
+            for _ in range(args.eval.num_trajs):
+                state, _ = eval_env.reset(seed=args.seed + 2000)
+                episode_reward = 0
+                done = False
+
+                current_steps = 0
+                for _ in range(args.eval.max_traj_steps):
+                    current_steps += 1
+
+                    agent.train(False)
+                    action = agent.get_action(state, sample=False)
+                    agent.train(True)
+                    next_state, reward, done, _, _ = eval_env.step(action)
+                    episode_reward += reward
+                    state = next_state
+
+                    if done:
+                        break
+
+                eval_episode_rewards.append(episode_reward/current_steps)
+
+            avg_eval_reward = sum(eval_episode_rewards) / len(eval_episode_rewards)
+            print(f"Epoch {epoch+1} average evaluation reward: {avg_eval_reward:.2f}")
+
+
 
 
 if __name__ == '__main__':

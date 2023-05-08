@@ -16,12 +16,17 @@
     "model_dir": "./models/cheetah.zip"
   },
   "train": {
-    "epochs": 20,
+    "epochs": 100,
     "episode_steps": 100,
     "warmup_steps": 10,
     "cuda": false,
     "lr": 0.01,
-    "batch_size": 32
+    "batch_size": 32,
+    "log_interval": 10
+  },
+  "eval": {
+    "num_trajs": 10,
+    "max_traj_steps": 1000
   },
   "critic": {
     "hidden_dim": 256,
@@ -30,9 +35,6 @@
   "actor": {
     "hidden_dim": 256,
     "hidden_depth": 2,
-    "log_std_bounds": [
-      -5,
-      2
-    ]
+    "log_std_bounds": [-5, 2]
   }
 }

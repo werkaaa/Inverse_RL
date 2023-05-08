@@ -32,7 +32,8 @@ class SAC(object):
         self.target_update_frequency = args.target_update_frequency
         self.actor_update_frequency = args.actor_update_frequency
 
-        self.device = torch.device("cuda" if args.train.cuda else "cpu")
+        # self.device = torch.device("cuda" if args.train.cuda else "cpu")
+        self.device = torch.device("mps")
 
         # TODO: Models are fixed now, but for the future experiments they should be passed in the config.
         self.critic = SingleQCritic(
