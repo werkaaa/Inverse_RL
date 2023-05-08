@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from torch import distributions as pyd
 
 
-
 def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
     if hidden_depth == 0:
         mods = [torch.nn.Linear(input_dim, output_dim)]
@@ -18,18 +17,18 @@ def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
         mods.append(output_mod)
     return torch.nn.Sequential(*mods)
 
+
 class SingleQCritic(torch.nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden_dim, hidden_depth, args):
+    def __init__(self, obs_dim, action_dim, args):
         super(SingleQCritic, self).__init__()
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.args = args
 
         # Q architecture
-        self.Q = mlp(obs_dim + action_dim, hidden_dim, 1, hidden_depth)
+        self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth)
 
         # In the original paper they performed some custom weight initialisation
-
 
     def forward(self, obs, action):
         assert obs.size(0) == action.size(0)
@@ -37,10 +36,12 @@ class SingleQCritic(torch.nn.Module):
         obs_action = torch.cat([obs, action], dim=-1)
         q = self.Q(obs_action)
 
-        if self.args.method.tanh:
-            q = torch.tanh(q) * 1/(1-self.args.gamma)
+        # I'm not sure where this comes from.
+        # if self.args.method.tanh:
+        #     q = torch.tanh(q) * 1/(1-self.args.gamma)
 
         return q
+
 
 class TanhTransform(pyd.transforms.Transform):
     domain = pyd.constraints.real
@@ -92,16 +93,14 @@ class SquashedNormal(pyd.transformed_distribution.TransformedDistribution):
 class DiagGaussianActor(torch.nn.Module):
     """torch.distributions implementation of a diagonal Gaussian policy."""
 
-    def __init__(self, obs_dim, action_dim, hidden_dim, hidden_depth,
-                 log_std_bounds):
+    def __init__(self, obs_dim, action_dim, args):
         super().__init__()
 
-        self.log_std_bounds = log_std_bounds
-        self.trunk = mlp(obs_dim, hidden_dim, 2 * action_dim,
-                               hidden_depth)
+        self.log_std_bounds = args.log_std_bounds
+        self.trunk = mlp(obs_dim, args.hidden_dim, 2 * action_dim,
+                         args.hidden_depth)
 
         self.outputs = dict()
-
 
     def forward(self, obs):
         mu, log_std = self.trunk(obs).chunk(2, dim=-1)
@@ -122,5 +121,3 @@ class DiagGaussianActor(torch.nn.Module):
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
 
         return action, log_prob, dist.mean
-
-

@@ -1,0 +1,37 @@
+{
+  "seed": 0,
+  "gamma": 0.99,
+  "alpha": 1,
+  "soft_update": false,
+  "offline": false,
+  "target_update_frequency": 1,
+  "actor_update_frequency": 1,
+  "initial_mem": 10,
+  "env": {
+    "name": "HalfCheetah-v2",
+    "demo": "HalfCheetah-v2_25.pkl"
+  },
+  "expert": {
+    "num_trajs": 4
+  },
+  "train": {
+    "epochs": 20,
+    "episode_steps": 100,
+    "warmup_steps": 10,
+    "cuda": false,
+    "lr": 0.01,
+    "batch_size": 32
+  },
+  "critic": {
+    "hidden_dim": 256,
+    "hidden_depth": 2
+  },
+  "actor": {
+    "hidden_dim": 256,
+    "hidden_depth": 2,
+    "log_std_bounds": [
+      -5,
+      2
+    ]
+  }
+}
