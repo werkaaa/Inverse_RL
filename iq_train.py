@@ -41,7 +41,7 @@ def main():
     # Create expert memory buffer
     expert_memory_replay = MemoryBuffer(args.seed + 3)
     expert_memory_replay.generate_expert_data(
-        env, args.expert_agent_dir, args.num_trajectories, args.seed + 4
+        env, args.env.expert, args.num_trajectories, args.seed + 4
     )
 
     # Train

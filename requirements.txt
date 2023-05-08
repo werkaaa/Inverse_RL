@@ -3,6 +3,8 @@ gym[box2d]
 tensorboard
 tqdm
 torch
-mujoco-py<2.2,>=2.1
-git+ssh://git@github.com/denisyarats/dmc2gym.git # Continuous action spaces
+gym[all]
+# mujoco-py<2.2,>=2.1
+# git+ssh://git@github.com/denisyarats/dmc2gym.git # Continuous action spaces
+
 git+https://github.com/carlosluis/stable-baselines3@fix_tests
