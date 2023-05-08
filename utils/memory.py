@@ -8,6 +8,7 @@ import numpy as np
 from gym import Env
 from stable_baselines3 import SAC
 import torch
+from tqdm import tqdm
 
 
 class MemoryBuffer:
@@ -26,7 +27,7 @@ class MemoryBuffer:
         self.length += 1
         self.buffer.append(experience)
 
-    def generate_expert_data(self, env: Env, expert_agent_dir: str, num_trajectories: int, seed: int):
+    def generate_expert_data(self, env: Env, args: dict, seed: int):
         """
         Generate expert data using a trained agent.
 
@@ -37,24 +38,25 @@ class MemoryBuffer:
         """
         env = copy.deepcopy(env)
 
-        model = SAC.load(expert_agent_dir, env)
+        model = SAC.load(args.model_dir, env)
 
         seed += 1
 
-        obs = env.reset(seed)
-        for _ in range(num_trajectories):
-            if done:
-                seed += 1
-                obs = env.reset(seed)
-                # TODO should we save or not?
-                continue
+        state, _ = env.reset(seed=seed)
+        for _ in tqdm(range(args.num_trajs)):
+            for _ in range(args.max_traj_steps):
 
-            action, _states = model.predict(obs, deterministic=True)
-            obs, reward, done, _ = env.step(action)
+                action, _ = model.predict(state, deterministic=True)
+                next_state, reward, done, _, _ = env.step(action)
+                state = next_state
 
-            self.add(
-                (_states, obs, action, reward, done)
-            )
+                self.add(
+                    (state, next_state, action, reward, done)
+                )
+                if done:
+                    break
+            seed += 1
+            state, _ = env.reset(seed=seed)
 
     def get_batch(self, batch_size):
         if batch_size > len(self.buffer):
@@ -78,5 +80,5 @@ class MemoryBuffer:
 
         return obs_batch, next_obs_batch, action_batch, reward_batch, done_batch
 
-#if __name__ == '__main__':
+# if __name__ == '__main__':
 #    pass

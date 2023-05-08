@@ -11,7 +11,7 @@ from utils.memory import MemoryBuffer
 def make_environment(args):
     # For now we run the simplest environment with continuous
     # action space. It should be extended later.
-    return gym.make(args.env.name)
+    return gym.make(args.env.name, render_mode="human")
 
 
 def make_agent(env, args):
@@ -41,15 +41,15 @@ def main():
     # Create expert memory buffer
     expert_memory_replay = MemoryBuffer(args.seed + 3)
     expert_memory_replay.generate_expert_data(
-        env, args.env.expert, args.num_trajectories, args.seed + 4
+        env, args.expert, args.seed + 4
     )
 
     # Train
     total_steps = 0
     learn_steps = 0
-    
-    for epoch in args.epochs:
-        state, _ = env.reset(args.seed + 1e6)
+
+    for epoch in range(args.train.epochs):
+        state, _ = env.reset(seed=args.seed + 1000)
         episode_reward = 0
 
         for episode_step in range(args.train.episode_steps + args.train.warmup_steps):
