@@ -1,9 +1,12 @@
 import json
-import pathlib
-from typing import Literal
+import os
+import random
+import time
 
 import gym
 from attrdict import AttrDict
+import numpy as np
+import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -29,39 +32,52 @@ def evaluate(agent, args, epoch, learn_steps, writer):
     render_mode = "human" if args.eval.show_vis else None
     eval_env = make_environment(args, render_mode=render_mode)
     eval_env.reset(seed=args.seed + 1)
+    rewards = []
 
-    eval_reward = 0
-    eval_steps = 0
     for _ in range(args.eval.num_trajs):
-        state, _ = eval_env.reset(seed=args.seed + 2000)
-        for _ in range(args.eval.max_traj_steps):
-            eval_steps += 1
-
+        episode_reward = 0
+        state, _ = eval_env.reset()
+        done = False
+        while not done:
             agent.train(False)
             action = agent.get_action(state, sample=False)
             agent.train(True)
-            next_state, reward, done, _, _ = eval_env.step(action)
-            eval_reward += reward
+            next_state, reward, _, done, _ = eval_env.step(action)
+            episode_reward += reward
             state = next_state
+        rewards.append(episode_reward)
 
-            if done:
-                break
+    avg_eval_reward = np.mean(rewards)
+    writer.add_scalar("eval/mean_episode_reward", avg_eval_reward, global_step=epoch)
+    print(f"Episode {epoch + 1} (learn step {learn_steps}) evaluation reward: {avg_eval_reward:.2f}")
+    return avg_eval_reward
 
-    avg_eval_reward = eval_reward / eval_steps
-    writer.add_scalar("eval/epoch_mean_reward", avg_eval_reward, global_step=epoch)
-    print(f"Epoch {epoch + 1} (learn step {learn_steps + 1}) average evaluation reward: {avg_eval_reward:.2f}")
+
+def save(agent, args, timestamp, output_dir='./results'):
+    name = f'iq_{args.env.name}_{timestamp}'
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    agent.save(f'{output_dir}/{name}')
 
 
 def main():
     with open('configs/sac.json') as f:
         args = AttrDict(json.load(f))
 
+    # Set the seeds
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
     # Save logs
-    writer = SummaryWriter(log_dir='logs')
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    writer = SummaryWriter(log_dir=f'logs/{timestamp}')
 
     # Make environments and set the seed
     env = make_environment(args)
     env.reset(seed=args.seed)
+    env.action_space.seed(seed=args.seed + 100)
 
     # make agent
     agent = make_agent(env, args)
@@ -79,27 +95,31 @@ def main():
     total_steps = 0
     learn_steps = 0
 
+    # Prepare for saving the model
+    best_eval_episode_reward = -np.inf
+
     for epoch in tqdm(range(args.train.epochs)):
-        state, _ = env.reset(seed=args.seed + 1000)
+        state, _ = env.reset()
         episode_reward = 0
+        done = False
+        episode_end = False
 
-        for episode_step in range(args.train.episode_steps):
+        while not (done or episode_end):
 
-            if total_steps < args.train.warmup_steps:
+            if total_steps < args.initial_mem:
                 # At the beginning the agent takes random actions.
-                action = env.action_space.sample()
+                action = env.action_space.sample()  # Checked
             else:
                 # We need to exit the train mode for the actor to play an action.
                 agent.train(False)
                 action = agent.get_action(state, sample=True)
                 agent.train(True)
             # Values returned by env.step:
-            # (2)=True if environment terminates (eg. due to task completion, failure etc.)
-            # (3)=True if episode truncates due to a time limit or a reason that is not defined as part of the task MDP.
-            next_state, reward, done, _, _ = env.step(action)
+            # done=True if environment terminates (eg. due to task completion, failure etc.)
+            # episode_end=True if episode truncates due to a time limit or a reason that is not defined as part of the task MDP.
+            next_state, reward, done, episode_end, _ = env.step(action)
             episode_reward += reward
             total_steps += 1
-
             online_memory_replay.add((state, next_state, action, reward, done))
 
             if online_memory_replay.length > args.initial_mem:
@@ -111,18 +131,22 @@ def main():
                 for key, loss in losses.items():
                     writer.add_scalar(key, loss, global_step=learn_steps)
 
+            # We compare to 1 to avoid multiple empty evaluations during warmup
+            if learn_steps % args.eval.eval_interval == 1:
+                eval_episode_reward = evaluate(agent, args, epoch, learn_steps, writer)
+                if eval_episode_reward > best_eval_episode_reward:
+                    # Store best eval returns
+                    best_eval_episode_reward = eval_episode_reward
+                    # wandb.run.summary["best_returns"] = best_eval_returns
+                    save(agent, args, timestamp, output_dir='./results')
+
             if done:
                 break
             state = next_state
 
-        avg_train_reward = episode_reward / args.train.episode_steps
-        writer.add_scalar("train/epoch_mean_reward", avg_train_reward, global_step=epoch)
-        print(f"Epoch {epoch + 1} average train reward: {avg_train_reward:.2f}")
-
-        evaluate(agent, args, epoch, learn_steps, writer)
+        writer.add_scalar("train/episode_reward", episode_reward, global_step=learn_steps)
+        print(f"Episode {epoch + 1} (learn step {learn_steps + 1}) episode reward: {episode_reward:.2f}")
 
 
 if __name__ == '__main__':
     main()
-
-# TODO: Add saving the model.

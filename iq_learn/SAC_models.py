@@ -1,8 +1,18 @@
 import math
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 from torch import distributions as pyd
+
+
+# This initialisation makes the weights neither disappear not vanish
+def orthogonal_init_(m):
+    """Custom weight init for Conv2D and Linear layers."""
+    if isinstance(m, nn.Linear):
+        nn.init.orthogonal_(m.weight.data)
+        if hasattr(m.bias, 'data'):
+            m.bias.data.fill_(0.0)
 
 
 def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
@@ -28,7 +38,8 @@ class SingleQCritic(torch.nn.Module):
         # Q architecture
         self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth)
 
-        # In the original paper they performed some custom weight initialisation
+        # Apply custom weight initialisation
+        self.apply(orthogonal_init_)
 
     def forward(self, obs, action):
         assert obs.size(0) == action.size(0)
@@ -63,8 +74,6 @@ class TanhTransform(pyd.transforms.Transform):
         return x.tanh()
 
     def _inverse(self, y):
-        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
-        # one should use `cache_size=1` instead
         return self.atanh(y)
 
     def log_abs_det_jacobian(self, x, y):
@@ -101,6 +110,7 @@ class DiagGaussianActor(torch.nn.Module):
                          args.hidden_depth)
 
         self.outputs = dict()
+        self.apply(orthogonal_init_)
 
     def forward(self, obs):
         mu, log_std = self.trunk(obs).chunk(2, dim=-1)

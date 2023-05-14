@@ -1,5 +1,4 @@
 import copy
-import pickle
 import random
 from typing import Tuple
 import warnings
@@ -44,17 +43,24 @@ class MemoryBuffer:
 
         state, _ = env.reset(seed=seed)
         for _ in tqdm(range(args.num_trajs)):
-            for _ in range(args.max_traj_steps):
-
+            episode_reward = 0
+            steps = 0
+            rewards = []
+            episode_end = False
+            done = False
+            # After episode_end becomes true the environment returns some unreliable data
+            while not (episode_end or done):
                 action, _ = model.predict(state, deterministic=True)
-                next_state, reward, done, _, _ = env.step(action)
-                state = next_state
-
+                next_state, reward, done, episode_end, _ = env.step(action)
+                episode_reward += reward
+                rewards.append(reward)
+                steps += 1
                 self.add(
                     (state, next_state, action, reward, done)
                 )
-                if done:
-                    break
+                state = next_state
+
+            print(f"Generated expert data with mean reward {episode_reward}")
             seed += 1
             state, _ = env.reset(seed=seed)
 
@@ -66,7 +72,7 @@ class MemoryBuffer:
                 Warning)
             batch_size = len(self.buffer)
 
-        # Select a consecutive batch of data of size batch_size starting from the random start index
+        # Select a non-consecutive batch of data of size batch_size starting from the random start index
         indexes = np.random.choice(
             np.arange(len(self.buffer)), size=batch_size, replace=False)
         batch = [self.buffer[i] for i in indexes]
