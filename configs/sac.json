@@ -2,7 +2,7 @@
   "seed": 1,
   "gamma": 0.99,
   "alpha_ksi": 0.5,
-  "alpha": null,
+  "alpha": 0.01,
   "soft_update": true,
   "critic_tau": 0.005,
   "offline": false,
