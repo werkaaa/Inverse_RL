@@ -48,7 +48,7 @@ def evaluate(agent, args, epoch, learn_steps, writer):
         rewards.append(episode_reward)
 
     avg_eval_reward = np.mean(rewards)
-    writer.add_scalar("eval/mean_episode_reward", avg_eval_reward, global_step=epoch)
+    writer.add_scalar("eval/mean_episode_reward", avg_eval_reward, global_step=learn_steps)
     print(f"Episode {epoch + 1} (learn step {learn_steps}) evaluation reward: {avg_eval_reward:.2f}")
     return avg_eval_reward
 
