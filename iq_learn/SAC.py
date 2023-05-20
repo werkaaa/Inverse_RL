@@ -16,10 +16,8 @@ def hard_update(target, source):
         target_param.data.copy_(param.data)
 
 
-def iq_loss(agent, current_Q, current_v, next_v, done, is_expert):
-    gamma = agent.gamma
-
-    y = (1 - done) * gamma * next_v
+def iq_loss(agent, current_Q, current_v, next_v, obs, done, is_expert):
+    y = (1 - done) * agent.gamma * next_v
     reward = current_Q - y
     reward_expert = (current_Q - y)[is_expert]
 
@@ -27,9 +25,18 @@ def iq_loss(agent, current_Q, current_v, next_v, done, is_expert):
     #  -E_(ρ_expert)[Q(s, a) - γV(s')]
     loss = -reward_expert.mean()
 
-    # Calculate 2nd term of the loss (use expert and policy states): E_(ρ)[Q(s,a) - γV(s')]
-    value_loss = (current_v - y).mean()
-    loss += value_loss
+    # Calculate 2nd term of the loss (use expert and policy states)
+    if agent.loss == 'v0':
+        # (1-γ)E_(ρ0)[V(s0)]
+        v0 = agent.getV(obs[is_expert.squeeze(1), ...]).mean()
+        v0_loss = (1 - agent.gamma) * v0
+        loss += v0_loss
+    elif agent.loss == 'value':
+        # E_(ρ)[Q(s,a) - γV(s')]
+        value_loss = (current_v - y).mean()
+        loss += value_loss
+    else:
+        raise NotImplementedError(f'Loss {agent.loss} not implemented!')
 
     # Use χ2 divergence (adds an extra term to the loss)
     chi2_loss = 1 / (4 * agent.alpha_ksi) * (reward ** 2).mean()
@@ -56,11 +63,14 @@ def get_concat_samples(policy_batch, expert_batch):
 
 
 class SAC(object):
-    def __init__(self, obs_dim, action_dim, args):
+    def __init__(self, obs_dim, action_dim, args, action_low, action_high):
 
         self.gamma = args.gamma
         self.alpha_ksi = args.alpha_ksi
+        self.loss = args.loss
         self.batch_size = args.train.batch_size
+        self.action_low = action_low
+        self.action_high = action_high
 
         if args.train.cuda:
             self.device = torch.device("cuda")
@@ -123,7 +133,17 @@ class SAC(object):
         state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
         dist = self.actor(state)
         action = dist.sample() if sample else dist.mean
-        return action.detach().cpu().numpy()[0]
+        action = action.detach().cpu().numpy()[0]
+        if (np.abs(self.action_low + np.ones_like(self.action_low)).max() > 1e-6 or
+                np.abs(self.action_high - np.ones_like(self.action_high)).max() > 1e-6):
+            action = self.action_low + (action + 1.0) * (self.action_high - self.action_low) / 2.0
+            action = np.clip(action, self.action_low, self.action_high)
+
+        return action
+
+    def predict(self, state, deterministic=True):
+        """Makes the API compatible with stable baselines for evaluation."""
+        return self.get_action(state, sample=not deterministic)
 
     def getV(self, obs):
         action, log_prob, _ = self.actor.sample(obs)
@@ -156,7 +176,7 @@ class SAC(object):
 
         current_Q = self.critic(obs, action)
 
-        loss = iq_loss(self, current_Q, current_V, next_V, done, is_expert)
+        loss = iq_loss(self, current_Q, current_V, next_V, obs, done, is_expert)
 
         self.critic_optim.zero_grad()
         loss.backward()

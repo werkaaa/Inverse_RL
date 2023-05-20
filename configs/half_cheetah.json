@@ -2,6 +2,7 @@
   "seed": 1,
   "gamma": 0.99,
   "alpha_ksi": 0.5,
+  "loss": "value",
   "alpha": 0.01,
   "soft_update": true,
   "critic_tau": 0.005,
@@ -9,6 +10,7 @@
   "target_update_frequency": 1,
   "actor_update_frequency": 1,
   "initial_mem": 1280,
+    "standard_episode_length": 1000,
   "env": {
     "name": "HalfCheetah-v4"
   },

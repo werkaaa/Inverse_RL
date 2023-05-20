@@ -1,0 +1,50 @@
+{
+  "seed": 1,
+  "gamma": 0.99,
+  "alpha_ksi": 0.5,
+  "loss": "value",
+  "alpha": 0.075,
+  "soft_update": true,
+  "critic_tau": 0.005,
+  "offline": false,
+  "target_update_frequency": 1,
+  "actor_update_frequency": 1,
+  "initial_mem": 1280,
+  "standard_episode_length": 1000,
+  "env": {
+    "name": "Ant-v4"
+  },
+  "expert": {
+    "num_trajs": 1,
+    "max_traj_steps": 5000,
+    "model_dir": "./experts/ant.zip"
+  },
+  "train": {
+    "epochs": 1000,
+    "cuda": false,
+    "mps": false,
+    "batch_size": 256,
+    "log_interval": 500,
+    "show_vis": false
+  },
+  "eval": {
+    "eval_interval": 5000,
+    "num_trajs": 10,
+    "show_vis": false
+  },
+  "critic": {
+    "critic_lr": 3.0e-05,
+    "hidden_dim": 256,
+    "hidden_depth": 2
+  },
+  "actor": {
+    "actor_lr": 3.0e-04,
+    "alpha_lr": 3.0e-04,
+    "hidden_dim": 256,
+    "hidden_depth": 2,
+    "log_std_bounds": [
+      -5,
+      2
+    ]
+  }
+}
