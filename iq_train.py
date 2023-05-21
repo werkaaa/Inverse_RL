@@ -17,7 +17,7 @@ from utils.memory import MemoryBuffer
 def make_environment(args, render_mode=None):
     # For now we run the simplest environment with continuous
     # action space. It should be extended later.
-    return gym.make(args.env.name, render_mode=render_mode)
+    return gym.make(args.env.name, render_mode=render_mode)#, healthy_z_range=(0.2, 1.5))
 
 
 def make_agent(env, args):
@@ -25,7 +25,7 @@ def make_agent(env, args):
     # it can also be created here.
     obs_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
-    return SAC(obs_dim, action_dim, args)
+    return SAC(obs_dim, action_dim, args, env.action_space.low, env.action_space.high)
 
 
 def evaluate(agent, args, epoch, learn_steps, writer):
@@ -37,15 +37,19 @@ def evaluate(agent, args, epoch, learn_steps, writer):
     for _ in range(args.eval.num_trajs):
         episode_reward = 0
         state, _ = eval_env.reset()
+        episode_end = False
         done = False
-        while not done:
+        steps = 0
+        while not (done or episode_end):
             agent.train(False)
             action = agent.get_action(state, sample=False)
             agent.train(True)
-            next_state, reward, _, done, _ = eval_env.step(action)
+            next_state, reward, done, episode_end, _ = eval_env.step(action)
             episode_reward += reward
             state = next_state
+            steps += 1
         rewards.append(episode_reward)
+        print(steps, episode_reward)
 
     avg_eval_reward = np.mean(rewards)
     writer.add_scalar("eval/mean_episode_reward", avg_eval_reward, global_step=learn_steps)
@@ -62,7 +66,7 @@ def save(agent, args, timestamp, output_dir='./results'):
 
 
 def main():
-    with open('configs/sac.json') as f:
+    with open('configs/humanoid.json') as f:
         args = AttrDict(json.load(f))
 
     # Set the seeds
@@ -97,18 +101,20 @@ def main():
 
     # Prepare for saving the model
     best_eval_episode_reward = -np.inf
-
-    for epoch in tqdm(range(args.train.epochs)):
+    epoch = 0
+    while epoch < args.train.epochs:
         state, _ = env.reset()
         episode_reward = 0
+        episode_steps = 0
         done = False
         episode_end = False
 
         while not (done or episode_end):
+            episode_steps += 1
 
             if total_steps < args.initial_mem:
                 # At the beginning the agent takes random actions.
-                action = env.action_space.sample()  # Checked
+                action = env.action_space.sample()
             else:
                 # We need to exit the train mode for the actor to play an action.
                 agent.train(False)
@@ -140,9 +146,10 @@ def main():
                     # wandb.run.summary["best_returns"] = best_eval_returns
                     save(agent, args, timestamp, output_dir='./results')
 
-            if done:
-                break
             state = next_state
+
+        if episode_steps == args.standard_episode_length:
+            epoch += 1
 
         writer.add_scalar("train/episode_reward", episode_reward, global_step=learn_steps)
         print(f"Episode {epoch + 1} (learn step {learn_steps + 1}) episode reward: {episode_reward:.2f}")
