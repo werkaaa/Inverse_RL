@@ -97,7 +97,7 @@ def main():
     # Create expert memory buffer
     expert_memory_replay = MemoryBuffer(args.seed + 3)
     expert_memory_replay.generate_expert_data(
-        env, args.expert, args.seed + 4,"DQN"
+        env, args.expert, args.seed + 4
     )
 
     # Train
