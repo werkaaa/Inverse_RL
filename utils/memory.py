@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 from gym import Env
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, DQN
 import torch
 from tqdm import tqdm
 
@@ -26,7 +26,7 @@ class MemoryBuffer:
         self.length += 1
         self.buffer.append(experience)
 
-    def generate_expert_data(self, env: Env, args: dict, seed: int):
+    def generate_expert_data(self, env: Env, args: dict, seed: int, type):
         """
         Generate expert data using a trained agent.
 
@@ -36,8 +36,10 @@ class MemoryBuffer:
         :param seed: The seed to use for the environment.
         """
         env = copy.deepcopy(env)
-
-        model = SAC.load(args.model_dir, env)
+        if type == "DQN":
+            model = DQN.load(args.model_dir, env)
+        elif type == "SAC":
+            model = SAC.load(args.model_dir, env)
 
         seed += 1
 
