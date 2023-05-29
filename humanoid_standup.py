@@ -7,12 +7,12 @@ env = gym.make("HumanoidStandup-v4")
 env.reset(seed=69)
 
 model = SAC("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=250_000, log_interval=10, progress_bar=True)
+model.learn(total_timesteps=1_000_000, log_interval=10, progress_bar=True)
 model.save("humanoid_standup")
 
 # # del model  # remove to demonstrate saving and loading
 
-env = gym.make("Humanoid-v4", render_mode="human")
+env = gym.make("Humanoid-v4")
 env.reset(seed=42)
 model = SAC.load("humanoid", env)
 

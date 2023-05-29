@@ -42,12 +42,14 @@ class SoftQ(object):
         self.critic= SimpleQNetwork(
             obs_dim,
             action_dim,
-            args.critic).to(device=self.device)
+            args.critic,
+            device=self.device).to(device=self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.critic.critic_lr)
         self.target_net = SimpleQNetwork(
             obs_dim,
             action_dim,
-            args.critic).to(device=self.device)
+            args.critic,
+            device=self.device).to(device=self.device)
         for target_param, param in zip(self.target_net.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data)
         self.train()
@@ -242,6 +244,7 @@ class SimpleQNetwork(SoftQNetwork):
         self.fc3 = nn.Linear(128, action_dim)
 
     def _forward(self, x, *args):
+        x = x.to(self.device)
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
