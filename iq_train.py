@@ -4,7 +4,6 @@ import random
 import time
 
 import gym
-from attrdict import AttrDict
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -12,6 +11,23 @@ from tqdm import tqdm
 
 from iq_learn.SAC import SAC
 from utils.memory import MemoryBuffer
+
+from collections import UserDict
+
+class AttrDict(UserDict):
+    def __getattr__(self, key):
+        if key in self.data:
+            value = self.data[key]
+            if isinstance(value, dict):
+                return AttrDict(value)
+            return value
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+
+    def __setattr__(self, key, value):
+        if key == "data":
+            return super().__setattr__(key, value)
+        return self.__setitem__(key, value)
+
 
 
 def make_environment(args, render_mode=None):
@@ -66,7 +82,7 @@ def save(agent, args, timestamp, output_dir='./results'):
 
 
 def main():
-    with open('configs/humanoid.json') as f:
+    with open('configs/half_cheetah.json') as f:
         args = AttrDict(json.load(f))
 
     # Set the seeds
