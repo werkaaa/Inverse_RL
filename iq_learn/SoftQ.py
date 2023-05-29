@@ -1,12 +1,14 @@
+
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.optim import Adam
-from torch.distributions import Categorical
+
+
 
 def soft_update(target, source, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
-        target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+        target_param.data.copy_(
+            target_param.data * (1.0 - tau) + param.data * tau)
 
 
 def hard_update(target, source):
@@ -35,7 +37,8 @@ class SoftQ(object):
             self.log_alpha.requires_grad = True
         else:
             self.log_alpha = np.log(args.alpha)
-          
+        
+        
         self.critic= SimpleQNetwork(
             obs_dim,
             action_dim,
@@ -49,6 +52,8 @@ class SoftQ(object):
             target_param.data.copy_(param.data)
         self.train()
         self.target_net.train()
+
+    
 
     def iq_update(self, policy_buffer, expert_buffer, step):
         policy_batch = policy_buffer.get_batch(self.batch_size)
@@ -67,6 +72,9 @@ class SoftQ(object):
             #[V ∗(s0)], 
             next_v = self.alpha * \
                 torch.logsumexp(q/self.alpha, dim=1, keepdim=True)
+        #phi=1, Es primo=s primo. s' e' un'indice di somma (somma su tuti i possiibli stati da cui puo essere vneuto un s)
+        # y e' la soluzione dell'equazione di bellman che e' lo stato fiale e dev'essere uguale a q asterisco che risolve l'equazione
+        #cerca iterativamente qualcosa che miimizzi l'errore
             y = (1 - done) * self.gamma * next_v
         #Q(s, a)
         current_Q = self.critic(obs, action)
@@ -79,21 +87,36 @@ class SoftQ(object):
             # Calculate 2nd term of the loss (use expert and policy states)
             # (1-γ)E_(ρ0)[V(s0)]
         value_loss = F.mse_loss(self.critic(obs, action), y)
+        #value_loss=
+        
         loss += value_loss
+        # Use χ2 e' psi divergence (adds an extra term to the loss)
         chi2_loss = 1 / (4 * self.alpha) * (reward ** 2).mean()
         loss += chi2_loss
+
+        # PRECEDENTE
+        # critic_loss = F.mse_loss(self.critic(obs, action), y)
+        # logger.log('train_critic/loss', critic_loss, step)
+
+        #iq_update_critic
         self.critic_optim.zero_grad()
         loss.backward()
         self.critic_optim.step()
 
         losses = {
-            'loss/critic': loss.item()}
+            'loss/iq_critic_loss': loss.item()}
+
+        #nostra iq_update
         if step % self.target_update_frequency == 0:
             if self.soft_update:
                 soft_update(self.target_net, self.critic, self.critic_tau)
             else:
                 hard_update(self.target_net, self.critic)
         return losses
+
+
+
+
 
     def train(self, training=True):
         self.training = training
@@ -125,6 +148,27 @@ class SoftQ(object):
         print('Loading models from {}'.format(critic_path))
         self.critic.load_state_dict(torch.load(critic_path, map_location=self.device))
 
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def predict(self, state, deterministic=True):
         """Makes the API compatible with stable baselines for evaluation."""
         return self.get_action(state, sample=deterministic)
@@ -138,6 +182,70 @@ class SoftQ(object):
             action = dist.sample() 
         return action.detach().cpu().numpy()[0]
 
+
+
+
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.distributions import Categorical
+import torch.nn.functional as F
+from torch.autograd import Variable, grad
+
+
+class SoftQNetwork(nn.Module):
+    def __init__(self, obs_dim, action_dim, args, device='cpu'):
+        super(SoftQNetwork, self).__init__()
+        self.args = args
+        self.device = device
+        self.tanh = nn.Tanh()
+
+    def _forward(self, x, *args):
+        return NotImplementedError
+
+    def forward(self, x, both=False):
+        out = self._forward(x)
+
+        return out
+
+    def jacobian(self, outputs, inputs):
+        """Computes the jacobian of outputs with respect to inputs
+
+        :param outputs: tensor for the output of some function
+        :param inputs: tensor for the input of some function (probably a vector)
+        :returns: a tensor containing the jacobian of outputs with respect to inputs
+        """
+        batch_size, output_dim = outputs.shape
+        jacobian = []
+        for i in range(output_dim):
+            v = torch.zeros_like(outputs)
+            v[:, i] = 1.
+            dy_i_dx = grad(outputs,
+                           inputs,
+                           grad_outputs=v,
+                           retain_graph=True,
+                           create_graph=True)[0]  # shape [B, N]
+            jacobian.append(dy_i_dx)
+
+        jacobian = torch.stack(jacobian, dim=-1).requires_grad_()
+        return jacobian
+
+
+class SimpleQNetwork(SoftQNetwork):
+    def __init__(self, obs_dim, action_dim, args, device='cpu'):
+        super(SimpleQNetwork, self).__init__(obs_dim, action_dim, args, device)
+        self.args = args
+        self.fc1 = nn.Linear(obs_dim, 128)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, action_dim)
+
+    def _forward(self, x, *args):
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 
