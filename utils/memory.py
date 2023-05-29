@@ -26,7 +26,7 @@ class MemoryBuffer:
         self.length += 1
         self.buffer.append(experience)
 
-    def generate_expert_data(self, env: Env, args: dict, seed: int, type):
+    def generate_expert_data(self, env: Env, args: dict, seed: int, typ):
         """
         Generate expert data using a trained agent.
 
@@ -36,10 +36,13 @@ class MemoryBuffer:
         :param seed: The seed to use for the environment.
         """
         env = copy.deepcopy(env)
-        if type == "DQN":
+
+        if typ == 'DQN':
             model = DQN.load(args.model_dir, env)
-        elif type == "SAC":
+        elif typ=='SAC':
             model = SAC.load(args.model_dir, env)
+
+    
 
         seed += 1
 
