@@ -2,9 +2,10 @@ import json
 import os
 import random
 import time
+from collections import UserDict
 
 import gym
-from attrdict import AttrDict
+# from attrdict import AttrDict
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -12,6 +13,21 @@ from tqdm import tqdm
 
 from iq_learn.SAC import SAC
 from utils.memory import MemoryBuffer
+
+
+class AttrDict(UserDict):
+    def __getattr__(self, key):
+        if key in self.data:
+            value = self.data[key]
+            if isinstance(value, dict):
+                return AttrDict(value)
+            return value
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+
+    def __setattr__(self, key, value):
+        if key == "data":
+            return super().__setattr__(key, value)
+        return self.__setitem__(key, value)
 
 
 def make_environment(args, render_mode=None):
