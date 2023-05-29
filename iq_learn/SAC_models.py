@@ -15,7 +15,7 @@ def orthogonal_init_(m):
             m.bias.data.fill_(0.0)
 
 
-def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
+def mlp(input_dim, hidden_dim, output_dim, hidden_depth, device, output_mod=None):
     if hidden_depth == 0:
         mods = [torch.nn.Linear(input_dim, output_dim)]
     else:
@@ -25,18 +25,20 @@ def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
         mods.append(torch.nn.Linear(hidden_dim, output_dim))
     if output_mod is not None:
         mods.append(output_mod)
-    return torch.nn.Sequential(*mods)
+    print(device)
+    return torch.nn.Sequential(*mods).to(device)
 
 
 class SingleQCritic(torch.nn.Module):
-    def __init__(self, obs_dim, action_dim, args):
+    def __init__(self, obs_dim, action_dim, device, args):
         super(SingleQCritic, self).__init__()
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.args = args
+        self.device = device
 
         # Q architecture
-        self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth)
+        self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth, self.device)
 
         # Apply custom weight initialisation
         self.apply(orthogonal_init_)
@@ -105,9 +107,11 @@ class DiagGaussianActor(torch.nn.Module):
     def __init__(self, obs_dim, action_dim, device, args):
         super().__init__()
 
+        self.device = device
+
         self.log_std_bounds = args.log_std_bounds
         self.trunk = mlp(obs_dim, args.hidden_dim, 2 * action_dim,
-                         args.hidden_depth).to(device)
+                         args.hidden_depth, self.device)
 
         self.outputs = dict()
         self.apply(orthogonal_init_)

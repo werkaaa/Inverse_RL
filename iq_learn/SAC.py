@@ -100,13 +100,17 @@ class SAC(object):
         self.critic = SingleQCritic(
             obs_dim,
             action_dim,
-            args.critic).to(device=self.device)
+            self.device,
+            args.critic,
+            ).to(device=self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.critic.critic_lr)
 
         self.critic_target = SingleQCritic(
             obs_dim,
             action_dim,
-            args.critic).to(device=self.device)
+            self.device,
+            args.critic,
+            ).to(device=self.device)
         hard_update(self.critic_target, self.critic)
 
         self.actor = DiagGaussianActor(
