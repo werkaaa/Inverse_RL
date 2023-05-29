@@ -112,6 +112,7 @@ class SAC(object):
         self.actor = DiagGaussianActor(
             obs_dim,
             action_dim,
+            self.device,
             args.actor).to(device=self.device)
         self.actor_optim = Adam(self.actor.parameters(), lr=args.actor.actor_lr)
 
