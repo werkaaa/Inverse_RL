@@ -38,13 +38,16 @@ class SingleQCritic(torch.nn.Module):
         self.device = device
 
         # Q architecture
-        self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth, self.device)
+        self.Q = mlp(obs_dim + action_dim, args.hidden_dim, 1, args.hidden_depth, self.device).to(self.device)
 
         # Apply custom weight initialisation
         self.apply(orthogonal_init_)
 
     def forward(self, obs, action):
         assert obs.size(0) == action.size(0)
+
+        obs = obs.to(self.device)
+        action = action.to(self.device)
 
         obs_action = torch.cat([obs, action], dim=-1)
         q = self.Q(obs_action)
@@ -111,12 +114,13 @@ class DiagGaussianActor(torch.nn.Module):
 
         self.log_std_bounds = args.log_std_bounds
         self.trunk = mlp(obs_dim, args.hidden_dim, 2 * action_dim,
-                         args.hidden_depth, self.device)
+                         args.hidden_depth, self.device).to(self.device)
 
         self.outputs = dict()
         self.apply(orthogonal_init_)
 
     def forward(self, obs):
+        obs = obs.to(self.device)
         mu, log_std = self.trunk(obs).chunk(2, dim=-1)
 
         # constrain log_std inside [log_std_min, log_std_max]

@@ -181,6 +181,14 @@ class SAC(object):
 
         current_Q = self.critic(obs, action)
 
+        # move all tensors to self.device
+        current_V = current_V.to(self.device)
+        next_V = next_V.to(self.device)
+        current_Q = current_Q.to(self.device)
+        obs = obs.to(self.device)
+        done = done.to(self.device)
+        is_expert = is_expert.to(self.device)
+
         loss = iq_loss(self, current_Q, current_V, next_V, obs, done, is_expert)
 
         self.critic_optim.zero_grad()
